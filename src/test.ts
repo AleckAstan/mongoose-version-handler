@@ -8,6 +8,7 @@ interface TestDocument extends Document {
     documentVersion: number;
     documentVersionDate?: Date;
     getVersion: (version: number) => Promise<TestDocument>;
+    rollback: () => void;
 }
 
 // Extend the Mongoose Model type to include the history model if required
@@ -37,20 +38,11 @@ TestSchema.plugin(mongoHistory, {
 const TestModel = mongoose.model<TestDocument, TestModel>('Test', TestSchema);
 
 // Test creating and updating a document
-async function test() {
+async function create() {
     try {
         console.log('Creating a new document...');
         const doc = await TestModel.create({ name: 'John Doe', age: 30 });
         console.log('Saved Document:', doc);
-
-        console.log('Updating the document...');
-        doc.age = 31;
-        await doc.save();
-        console.log('Updated Document:', doc);
-
-        console.log('Retrieving a previous version...');
-        const previousVersion = await doc.getVersion(1);
-        console.log('Previous Version:', previousVersion);
 
         console.log('Attempting to retrieve an invalid version...');
         try {
@@ -58,6 +50,24 @@ async function test() {
         } catch (error) {
             console.error('Error:');
         }
+    } catch (error) {
+        console.error('Test Error:', error);
+    } finally {
+        mongoose.disconnect();
+    }
+}
+async function update() {
+    try {
+        const doc = await TestModel.findOne({ name: 'John Doe' });
+        if(!doc) return console.log('No document found.');
+        console.log('Updating the document...');
+        doc.age = 32;
+        await doc.save();
+        console.log('Updated Document:', doc);
+
+        console.log('Retrieving a previous version...');
+        const previousVersion = await doc.getVersion(1);
+        console.log('Previous Version:', previousVersion);
     } catch (error) {
         console.error('Test Error:', error);
     } finally {
@@ -75,14 +85,37 @@ async function findModel() {
         mongoose.disconnect();
     }
 }
+async function rollback() {
+    try {
+        const doc = await TestModel.findOne({ name: 'John Doe' });
+
+        if (!doc) {
+            console.error('Document not found');
+            return;
+        }
+
+        console.log('Rolling back the document...');
+        await doc.rollback();
+        console.log('Rollback complete:', doc);
+    } catch (error) {
+        console.error('Test Error:', error);
+    } finally {
+        mongoose.disconnect();
+    }
+
+}
 
 
-// test().catch((err) => {
+// create().catch((err) => {
 //     console.error(err);
-//     mongoose.disconnect();
 // });
-findModel().catch((err) => {
+// update().catch((err) => {
+//     console.error(err);
+// });
+// findModel().catch((err) => {
+//     console.error(err);
+// });
+rollback().catch((err) => {
     console.error(err);
-    mongoose.disconnect();
 });
 

@@ -1,23 +1,22 @@
-import {Schema} from "mongoose";
+import { SaveOptions, Schema } from "mongoose";
 
-var mongoose = require('mongoose');
-var diffToPatch = require('diff-to-patch');
-var jsonPatch = require('json-patch');
+const mongoose = require('mongoose');
+const diffToPatch = require('diff-to-patch');
+const jsonPatch = require('json-patch');
 
-const mongoHistory = (schema:Schema, options:any) => {
-    var versionKey = (options && options.versionKey) ? options.versionKey : 'documentVersion';
-    var versionDateKey = (options && options.versionDateKey) ? options.versionDateKey : 'documentVersionDate';
-    var connection = (options && options.connection) ? options.connection : mongoose;
-    var trackDate = !!(options && options.trackDate);
-    var addDateToDocument = !!(options && options.addDateToDocument);
+const mongoHistory = (schema: Schema, options: any) => {
+    const versionKey = (options && options.versionKey) ? options.versionKey : 'documentVersion';
+    const versionDateKey = (options && options.versionDateKey) ? options.versionDateKey : 'documentVersionDate';
+    const connection = (options && options.connection) ? options.connection : mongoose;
+    const trackDate = !!(options && options.trackDate);
+    const addDateToDocument = !!(options && options.addDateToDocument);
 
-    function getVersionModel(collectionName:string) {
-
+    function getVersionModel(collectionName: string) {
         if (connection.models[collectionName]) {
             return connection.model(collectionName);
         }
 
-        var schemaConfig:any = {
+        const schemaConfig: any = {
             parent: mongoose.SchemaTypes.ObjectId,
             version: Number,
             patches: [{
@@ -31,30 +30,31 @@ const mongoHistory = (schema:Schema, options:any) => {
             schemaConfig.date = Date;
         }
 
-        var ChangeSet = new mongoose.Schema(schemaConfig);
+        const ChangeSet = new mongoose.Schema(schemaConfig);
 
         return connection.model(collectionName, ChangeSet);
     }
 
-    var schemaMod:any = {};
+    const schemaMod: any = {};
     schemaMod[versionKey] = Number;
     if (addDateToDocument) {
         schemaMod[versionDateKey] = Date;
     }
     schema.add(schemaMod);
 
-    schema.pre('save', function (next) {
-        var historyModel = getVersionModel((options && options.collection) ? options.collection : this.collection.name + '_h');
-        var date = new Date();
+    schema.pre('save', function (next, opts: SaveOptions & { disablePreSaveHook?: boolean }) {
+        if (opts?.disablePreSaveHook) return next();
+        const historyModel = getVersionModel((options && options.collection) ? options.collection : this.collection.name + '_h');
+        const date = new Date();
 
         if (this.isNew) {
             this[versionKey] = 1;
             if (trackDate && addDateToDocument) {
                 this[versionDateKey] = date;
             }
-            var patches = diffToPatch({}, this.toObject());
+            const patches = diffToPatch({}, this.toObject());
 
-            var versionObject:any = {
+            const versionObject: any = {
                 parent: this._id,
                 version: this[versionKey],
                 patches: patches
@@ -64,7 +64,7 @@ const mongoHistory = (schema:Schema, options:any) => {
                 versionObject.date = date;
             }
 
-            var version = new historyModel(versionObject);
+            const version = new historyModel(versionObject);
 
             version.save();
             next();
@@ -73,19 +73,19 @@ const mongoHistory = (schema:Schema, options:any) => {
             if (trackDate && addDateToDocument) {
                 this[versionDateKey] = date;
             }
-            var newVersion:any = this.toObject();
+            const newVersion: any = this.toObject();
 
-            historyModel.find({parent: this._id}).sort({version: 1}).then(function (versions:any) {
-                var patches:any = [];
-                for (var i = 0; i < versions.length; i++) {
+            historyModel.find({ parent: this._id }).sort({ version: 1 }).then(function (versions: any) {
+                let patches: any = [];
+                for (let i = 0; i < versions.length; i++) {
                     patches = patches.concat(versions[i].patches);
                 }
 
-                var previousVersion = jsonPatch.apply({}, patches);
+                const previousVersion = jsonPatch.apply({}, patches);
 
-                var patches = diffToPatch(previousVersion, newVersion);
+                patches = diffToPatch(previousVersion, newVersion);
 
-                var versionObject:any = {
+                const versionObject: any = {
                     parent: newVersion._id,
                     version: newVersion[versionKey],
                     patches: patches
@@ -95,7 +95,7 @@ const mongoHistory = (schema:Schema, options:any) => {
                     versionObject.date = date;
                 }
 
-                var version = new historyModel(versionObject);
+                const version = new historyModel(versionObject);
 
                 version.save();
                 next();
@@ -103,37 +103,30 @@ const mongoHistory = (schema:Schema, options:any) => {
         }
     });
 
-
-    /**
-     * Returns the specified version number of a document
-     * @param {number} versionNumber - The version number to return
-     * @param {Function} cb - The callback-function
-     * @returns {Promise} - A promise resolving to the specified version of the document
-     */
-    schema.methods.getVersion = function (versionNumber:any, cb:any) {
+    schema.methods.getVersion = function (versionNumber: any, cb: any) {
         if (versionNumber < 1 || versionNumber > this[versionKey]) {
-            var vErr = new Error('The version number cannot be smaller than 1 or larger than ' + this[versionKey]);
+            const vErr = new Error('The version number cannot be smaller than 1 or larger than ' + this[versionKey]);
             if (cb instanceof Function) {
                 cb(vErr);
             }
             throw vErr;
         }
 
-        var historyModel = getVersionModel((options && options.collection) ? options.collection : this.collection.name + '_h');
+        const historyModel = getVersionModel((options && options.collection) ? options.collection : this.collection.name + '_h');
         return historyModel
             .where('parent').equals(this._id)
             .where('version').lte(versionNumber)
             .select('patches')
-            .sort({version: 1})
+            .sort({ version: 1 })
             .exec()
-            .then(function (results:any) {
-                var patches:any = [];
-                for (var i = 0; i < results.length; i++) {
+            .then(function (results: any) {
+                let patches: any = [];
+                for (let i = 0; i < results.length; i++) {
                     patches = patches.concat(results[i].patches);
                 }
 
                 return jsonPatch.apply({}, patches);
-            }).catch(function (err:any) {
+            }).catch(function (err: any) {
                 if (cb instanceof Function) {
                     cb(err);
                 }
@@ -141,10 +134,62 @@ const mongoHistory = (schema:Schema, options:any) => {
             });
     }
 
-    /**
-     * Returns the mongoose model for the version collection
-     * @returns {mongoose.Model} - The mongoose model for the schema's version collection
-     */
+    schema.methods.rollback = async function (cb: any) {
+        const versionKey = options.versionKey || 'version';
+        const historyModel = getVersionModel((options && options.collection) ? options.collection : this.collection.name + '_h');
+        console.log(versionKey);
+        if (this[versionKey] === 1) {
+            await this.deleteOne();
+            await historyModel.deleteOne({ parent: this._id, version: 1 });
+            if (cb instanceof Function) {
+                return cb(null, { message: 'Document deleted as it had no previous versions.' });
+            }
+            return { message: 'Document deleted as it had no previous versions.' };
+        }
+
+        const previousVersion = await historyModel
+            .where('parent').equals(this._id)
+            .where('version').lt(this[versionKey])
+            .sort({ version: -1 })
+            .limit(1)
+            .exec()
+            .then((results: any) => results[0])
+            .catch((err: any) => {
+                if (cb instanceof Function) {
+                    return cb(err);
+                }
+                throw err;
+            });
+
+        if (!previousVersion) {
+            const err = new Error('No previous version found.');
+            if (cb instanceof Function) {
+                return cb(err);
+            }
+            throw err;
+        }
+        console.log('previousVersion', previousVersion);
+        try {
+            const restoredDocument = jsonPatch.apply(this, previousVersion.patches);
+            console.log('restoredDocument', restoredDocument);
+            Object.assign(this, restoredDocument);
+            this[versionKey] = previousVersion.version;
+
+            await this.save({ disablePreSaveHook: true });
+            await historyModel.deleteOne({ parent: this._id, version: this[versionKey] + 1 });
+
+            if (cb instanceof Function) {
+                return cb(null, this);
+            }
+            return this;
+        } catch (err) {
+            if (cb instanceof Function) {
+                return cb(err);
+            }
+            throw err;
+        }
+    };
+
     schema.statics.getHistoryModel = function () {
         return getVersionModel((options && options.collection) ? options.collection : this.collection.name + '_h');
     }
