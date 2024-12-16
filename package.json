@@ -10,6 +10,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "diff-to-patch": "^0.1.0",
+    "fast-json-patch": "^3.1.1",
+    "json-patch": "^0.7.0",
+    "just-diff": "^6.0.2",
     "mongoose": "^8.9.0"
   },
   "devDependencies": {
