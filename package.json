@@ -1,7 +1,11 @@
 {
   "name": "mongoose-version-handler",
   "version": "0.1.0",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc"
   },
