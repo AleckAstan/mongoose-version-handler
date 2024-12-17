@@ -1,12 +1,20 @@
 {
-  "name": "mongo_history",
-  "version": "1.0.0",
+  "name": "mongoose-version-handler",
+  "version": "0.0.1",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "mongoose",
+    "versioner",
+    "mongoose-plugin",
+    "document rollback"
+  ],
+  "author": {
+    "name": "Antsa Judicaël",
+    "email": "aleck.dev.git@gmail.com"
+  },
   "license": "ISC",
   "description": "",
   "dependencies": {

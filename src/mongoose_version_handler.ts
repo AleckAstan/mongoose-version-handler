@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const diffToPatch = require('diff-to-patch');
 const jsonPatch = require('json-patch');
 
-const mongoHistory = (schema: Schema, options: any) => {
+const mongooseVersionHandler = (schema: Schema, options: any) => {
     const versionKey = (options && options.versionKey) ? options.versionKey : 'documentVersion';
     const versionDateKey = (options && options.versionDateKey) ? options.versionDateKey : 'documentVersionDate';
     const connection = (options && options.connection) ? options.connection : mongoose;
@@ -196,4 +196,4 @@ const mongoHistory = (schema: Schema, options: any) => {
 
 }
 
-export default mongoHistory;
+export default mongooseVersionHandler;

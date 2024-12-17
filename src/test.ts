@@ -1,5 +1,5 @@
 import mongoose, {Schema, Model} from 'mongoose';
-import mongoHistory from "./mongo_history";
+import mongooseVersionHandler from "./mongoose_version_handler";
 
 // Extend the Mongoose Document type to include custom plugin methods and properties
 interface TestDocument extends Document {
@@ -27,7 +27,7 @@ const TestSchema = new Schema<TestDocument>({
     age: { type: Number, required: true },
 });
 
-TestSchema.plugin(mongoHistory, {
+TestSchema.plugin(mongooseVersionHandler, {
     versionKey: 'documentVersion',
     versionDateKey: 'documentVersionDate',
     trackDate: true,
