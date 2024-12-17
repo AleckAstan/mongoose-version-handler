@@ -1,8 +1,7 @@
-import { SaveOptions, Schema } from "mongoose";
+import mongoose,{ SaveOptions, Schema } from "mongoose";
+import {diffApply, jsonPatchPathConverter as jsonPatchPathConverterApply} from 'just-diff-apply';
+import {diff,jsonPatchPathConverter} from 'just-diff';
 
-const mongoose = require('mongoose');
-const diffToPatch = require('diff-to-patch');
-const jsonPatch = require('json-patch');
 
 const mongooseVersionHandler = (schema: Schema, options: any) => {
     const versionKey = (options && options.versionKey) ? options.versionKey : 'documentVersion';
@@ -52,7 +51,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             if (trackDate && addDateToDocument) {
                 this[versionDateKey] = date;
             }
-            const patches = diffToPatch({}, this.toObject());
+            const patches = diff({}, this.toObject(),jsonPatchPathConverter);
 
             const versionObject: any = {
                 parent: this._id,
@@ -81,9 +80,9 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                     patches = patches.concat(versions[i].patches);
                 }
 
-                const previousVersion = jsonPatch.apply({}, patches);
+                const previousVersion = diffApply({}, patches,jsonPatchPathConverterApply);
 
-                patches = diffToPatch(previousVersion, newVersion);
+                patches = diff(previousVersion, newVersion,jsonPatchPathConverter);
 
                 const versionObject: any = {
                     parent: newVersion._id,
@@ -125,7 +124,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                     patches = patches.concat(results[i].patches);
                 }
 
-                return jsonPatch.apply({}, patches);
+                return diffApply({}, patches,jsonPatchPathConverterApply);
             }).catch(function (err: any) {
                 if (cb instanceof Function) {
                     cb(err);
@@ -137,7 +136,6 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
     schema.methods.rollback = async function (cb: any) {
         const versionKey = options.versionKey || 'version';
         const historyModel = getVersionModel((options && options.collection) ? options.collection : this.collection.name + '_h');
-        console.log(versionKey);
         if (this[versionKey] === 1) {
             await this.deleteOne();
             await historyModel.deleteOne({ parent: this._id, version: 1 });
@@ -168,10 +166,8 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             }
             throw err;
         }
-        console.log('previousVersion', previousVersion);
         try {
-            const restoredDocument = jsonPatch.apply(this, previousVersion.patches);
-            console.log('restoredDocument', restoredDocument);
+            const restoredDocument = diffApply(this, previousVersion.patches,jsonPatchPathConverterApply);
             Object.assign(this, restoredDocument);
             this[versionKey] = previousVersion.version;
 
