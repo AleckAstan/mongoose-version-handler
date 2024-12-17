@@ -2,12 +2,14 @@
   "name": "mongoose-version-handler",
   "version": "0.2.1",
   "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsup",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "mongoose",
@@ -32,6 +34,7 @@
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2",
+    "tsup": "^8.3.5",
     "typescript": "^5.7.2"
   }
 }
