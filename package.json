@@ -17,10 +17,6 @@
     "mongoose-plugin",
     "document rollback"
   ],
-  "author": {
-    "name": "Antsa Judicaël",
-    "email": "aleck.dev.git@gmail.com"
-  },
   "license": "ISC",
   "description": "",
   "dependencies": {
@@ -34,7 +30,14 @@
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2",
-    "tsup": "^8.3.5",
     "typescript": "^5.7.2"
+  },
+  "author": {
+    "name": "Antsa Judicaël",
+    "email": "aleck.dev.git@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AleckAstan/mongoose-version-handler.git"
   }
 }
