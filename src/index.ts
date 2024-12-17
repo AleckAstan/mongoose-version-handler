@@ -1,6 +1,6 @@
-import mongoose,{ SaveOptions, Schema } from "mongoose";
+import mongoose, {SaveOptions, Schema} from "mongoose";
 import {diffApply, jsonPatchPathConverter as jsonPatchPathConverterApply} from 'just-diff-apply';
-import {diff,jsonPatchPathConverter} from 'just-diff';
+import {diff, jsonPatchPathConverter} from 'just-diff';
 
 
 const mongooseVersionHandler = (schema: Schema, options: any) => {
@@ -51,7 +51,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             if (trackDate && addDateToDocument) {
                 this[versionDateKey] = date;
             }
-            const patches = diff({}, this.toObject(),jsonPatchPathConverter);
+            const patches = diff({}, this.toObject(), jsonPatchPathConverter);
 
             const versionObject: any = {
                 parent: this._id,
@@ -74,15 +74,15 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             }
             const newVersion: any = this.toObject();
 
-            historyModel.find({ parent: this._id }).sort({ version: 1 }).then(function (versions: any) {
+            historyModel.find({parent: this._id}).sort({version: 1}).then(function (versions: any) {
                 let patches: any = [];
                 for (let i = 0; i < versions.length; i++) {
                     patches = patches.concat(versions[i].patches);
                 }
 
-                const previousVersion = diffApply({}, patches,jsonPatchPathConverterApply);
+                const previousVersion = diffApply({}, patches, jsonPatchPathConverterApply);
 
-                patches = diff(previousVersion, newVersion,jsonPatchPathConverter);
+                patches = diff(previousVersion, newVersion, jsonPatchPathConverter);
 
                 const versionObject: any = {
                     parent: newVersion._id,
@@ -116,7 +116,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             .where('parent').equals(this._id)
             .where('version').lte(versionNumber)
             .select('patches')
-            .sort({ version: 1 })
+            .sort({version: 1})
             .exec()
             .then(function (results: any) {
                 let patches: any = [];
@@ -124,7 +124,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                     patches = patches.concat(results[i].patches);
                 }
 
-                return diffApply({}, patches,jsonPatchPathConverterApply);
+                return diffApply({}, patches, jsonPatchPathConverterApply);
             }).catch(function (err: any) {
                 if (cb instanceof Function) {
                     cb(err);
@@ -134,21 +134,20 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
     }
 
     schema.methods.rollback = async function (cb: any) {
-        const versionKey = options.versionKey || 'version';
         const historyModel = getVersionModel((options && options.collection) ? options.collection : this.collection.name + '_h');
         if (this[versionKey] === 1) {
             await this.deleteOne();
-            await historyModel.deleteOne({ parent: this._id, version: 1 });
+            await historyModel.deleteOne({parent: this._id, version: 1});
             if (cb instanceof Function) {
-                return cb(null, { message: 'Document deleted as it had no previous versions.' });
+                return cb(null, {message: 'Document deleted as it had no previous versions.'});
             }
-            return { message: 'Document deleted as it had no previous versions.' };
+            return {message: 'Document deleted as it had no previous versions.'};
         }
 
         const previousVersion = await historyModel
             .where('parent').equals(this._id)
             .where('version').lt(this[versionKey])
-            .sort({ version: -1 })
+            .sort({version: -1})
             .limit(1)
             .exec()
             .then((results: any) => results[0])
@@ -159,6 +158,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                 throw err;
             });
 
+
         if (!previousVersion) {
             const err = new Error('No previous version found.');
             if (cb instanceof Function) {
@@ -167,12 +167,12 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             throw err;
         }
         try {
-            const restoredDocument = diffApply(this, previousVersion.patches,jsonPatchPathConverterApply);
+            const restoredDocument = diffApply(this, previousVersion.patches, jsonPatchPathConverterApply);
             Object.assign(this, restoredDocument);
             this[versionKey] = previousVersion.version;
 
-            await this.save({ disablePreSaveHook: true });
-            await historyModel.deleteOne({ parent: this._id, version: this[versionKey] + 1 });
+            await this.save({disablePreSaveHook: true});
+            await historyModel.deleteOne({parent: this._id, version: this[versionKey] + 1});
 
             if (cb instanceof Function) {
                 return cb(null, this);
