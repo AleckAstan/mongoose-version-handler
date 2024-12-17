@@ -66,10 +66,10 @@ describe('mongooseVersionHandler Plugin', () => {
 
     it('should retrieve a specific version', async () => {
         const doc = new TestModel({ name: 'Versioned Doc' });
-        await doc.save();
-        doc.name = 'Updated to Version 2';
-        await doc.save();
-        const version1 = await doc.getVersion(1);
+        const created = await doc.save();
+        created.name = 'Updated to Version 2';
+        const updated = await doc.save();
+        const version1 = await updated.getVersion(1);
         expect(version1).toBeDefined();
         expect(version1.name).toBe('Versioned Doc');
     });
