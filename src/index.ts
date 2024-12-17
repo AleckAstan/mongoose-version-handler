@@ -196,4 +196,4 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
 
 }
 
-module.exports =  mongooseVersionHandler;
+export default mongooseVersionHandler;
