@@ -58,7 +58,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             );
             const date = new Date();
 
-            if (this.isNew) {
+            if (this.isNew || !this[versionKey]) {
                 this[versionKey] = 1;
                 if (trackDate && addDateToDocument) {
                     this[versionDateKey] = date;
