@@ -52,6 +52,37 @@ The plugin will:
 
 ---
 
+## Metadata in `save()` Method
+
+You can pass metadata during a document save operation to associate it with the history document.
+
+### Example
+
+```typescript
+const doc = await User.findOne({ ... });
+await doc.save({ metadata: { updatedBy: '6762be74ff14f3257509c4c3' } });
+```
+
+The `metadata` object will be saved alongside the JSON Patch changes in the history collection.
+
+### History Collection Schema (with Metadata)
+
+```typescript
+const ChangeSet = new mongoose.Schema({
+    parent: mongoose.SchemaTypes.ObjectId, // Source document ID
+    version: Number,                      // Version number
+    patches: [{                           // JSON Patch changes
+        op: String,
+        path: String,
+        value: mongoose.SchemaTypes.Mixed,
+    }],
+    metadata: mongoose.SchemaTypes.Mixed, // Metadata associated with this change
+    date: Date, // Available if 'trackDate' is enabled
+});
+```
+
+---
+
 ## Options
 
 ### `versionKey`
@@ -144,21 +175,6 @@ const UserHistory = User.getHistoryModel();
 const history = await UserHistory.find({ parent: user._id });
 ```
 
-The history collection schema looks like this:
-
-```typescript
-const ChangeSet = new mongoose.Schema({
-    parent: mongoose.SchemaTypes.ObjectId, // Source document ID
-    version: Number,                      // Version number
-    patches: [{                           // JSON Patch changes
-        op: String,
-        path: String,
-        value: mongoose.SchemaTypes.Mixed,
-    }],
-    date: Date, // Available if 'trackDate' is enabled
-});
-```
-
 ---
 
 ## NestJS Integration
@@ -182,11 +198,11 @@ import { CatService } from './cat.service';
         MongooseModule.forFeatureAsync([
             {
                 name: Cat.name,
-                inject: [getConnectionToken()],// inject the connection token
+                inject: [getConnectionToken()],
                 useFactory: (connection: Connection) => {
                     const schema = CatSchema;
-                    schema.plugin(mongooseVersionHandler, { connection }); // pass injected connection to the plugin options
-                    return schema; //return the modified schema
+                    schema.plugin(mongooseVersionHandler, { connection });
+                    return schema;
                 },
             },
         ]),
@@ -195,16 +211,6 @@ import { CatService } from './cat.service';
     providers: [CatService],
 })
 export class CatModule {}
-```
-
-### Using Versioning Methods in Your Service
-
-In your NestJS service, you can use the `getVersion()` and `rollback()` methods as demonstrated:
-
-```typescript
-const cat = await this.catModel.findOne({ ... });
-const previousVersion = await cat.getVersion(2);
-await cat.rollback();
 ```
 
 ---
@@ -218,12 +224,5 @@ await cat.rollback();
 
 ---
 
-## Why Use mongoose-version-handler?
-
-- Provides a reliable, structured way to manage document versions.
-- Enables clear tracking of changes and rollbacks.
-- Fits naturally into both Mongoose and NestJS workflows.
-
----
-
 Feel free to explore the plugin, contribute, or report any issues.
+
