@@ -1,5 +1,5 @@
-import mongoose, {Schema, Document, Model} from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import mongoose, {Document, Model, SaveOptions, Schema} from 'mongoose';
+import {MongoMemoryServer} from 'mongodb-memory-server';
 import mongooseVersionHandler from "./index";
 
 interface TestDocument extends Document {
@@ -18,22 +18,22 @@ describe('mongooseVersionHandler Plugin', () => {
 
     const setupTestModel = (pluginOptions?: any) => {
         const testSchema = new Schema<TestDocument>({
-            name: { type: String, required: true },
+            name: {type: String, required: true},
         });
         // Apply the plugin
         testSchema.plugin(mongooseVersionHandler, pluginOptions);
-        return connection.model<TestDocument,TestModel>('Test', testSchema);
+        return connection.model<TestDocument, TestModel>('Test', testSchema);
     };
 
     let mongoServer: MongoMemoryServer;
     let connection: typeof mongoose;
-    let TestModel:TestModel;
+    let TestModel: TestModel;
 
     beforeAll(async () => {
         mongoServer = await MongoMemoryServer.create();
         const uri = mongoServer.getUri();
         connection = await mongoose.connect(uri);
-        TestModel = setupTestModel({ trackDate: true, addDateToDocument: true });
+        TestModel = setupTestModel({trackDate: true, addDateToDocument: true});
     });
 
     afterAll(async () => {
@@ -42,30 +42,42 @@ describe('mongooseVersionHandler Plugin', () => {
     });
 
     it('should create a new document with version 1', async () => {
-        const doc = new TestModel({ name: 'Document 1' });
+        const doc = new TestModel({name: 'Document 1'});
         await doc.save();
         expect(doc.documentVersion).toBe(1);
         expect(doc.documentVersionDate).toBeDefined();
         const historyModel = TestModel.getHistoryModel();
-        const history = await historyModel.findOne({ parent: doc._id });
+        const history = await historyModel.findOne({parent: doc._id});
         expect(history).toBeDefined();
     });
 
     it('should increment version and save patches on update', async () => {
-        const doc = new TestModel({ name: 'Document 2' });
+        const doc = new TestModel({name: 'Document 2'});
         await doc.save();
         doc.name = 'Updated Document 2';
         await doc.save();
         expect(doc.documentVersion).toBe(2);
         const historyModel = TestModel.getHistoryModel();
-        const history = await historyModel.find({ parent: doc._id }).sort({ version: 1 });
+        const history = await historyModel.find({parent: doc._id}).sort({version: 1});
         expect(history.length).toBe(2);
         expect(history[1].version).toBe(2);
         expect(history[1].patches).toBeDefined();
     });
+    it('should add passed metadata to history data', async () => {
+        const doc = new TestModel({name: 'With metadata'});
+        await doc.save({metadata: {createdBy: 'user1'}} as SaveOptions & { metadata?: Record<string, any> });
+        const historyModel = TestModel.getHistoryModel();
+        doc.name = 'Updated With metadata 2';
+        await doc.save({metadata: {createdBy: 'user2'}} as SaveOptions & { metadata?: Record<string, any> });
+        const history = await historyModel.find({parent: doc._id}).sort({version: 1});
+        expect(history[0].metadata.createdBy).toBeDefined();
+        expect(history[0].metadata.createdBy).toBe('user1');
+        expect(history[1].metadata.createdBy).toBeDefined();
+        expect(history[1].metadata.createdBy).toBe('user2');
+    });
 
     it('should retrieve a specific version', async () => {
-        const doc = new TestModel({ name: 'Versioned Doc' });
+        const doc = new TestModel({name: 'Versioned Doc'});
         const created = await doc.save();
         created.name = 'Updated to Version 2';
         const updated = await doc.save();
@@ -75,7 +87,7 @@ describe('mongooseVersionHandler Plugin', () => {
     });
 
     it('should rollback to the previous version', async () => {
-        const doc = new TestModel({ name: 'Rollback Test' });
+        const doc = new TestModel({name: 'Rollback Test'});
         const saved = await doc.save();
         saved.name = 'Updated Name';
         const updated = await saved.save();
@@ -86,18 +98,18 @@ describe('mongooseVersionHandler Plugin', () => {
         expect(rollbacked?.documentVersion).toBe(1);
         expect(rollbacked?.name).toBe('Rollback Test');
         const historyModel = TestModel.getHistoryModel();
-        const remainingHistory = await historyModel.find({ parent: doc._id });
+        const remainingHistory = await historyModel.find({parent: doc._id});
         expect(remainingHistory.length).toBe(1);
     });
 
     it('should delete document if rolling back from version 1', async () => {
-        const doc = new TestModel({ name: 'Delete on Rollback' });
+        const doc = new TestModel({name: 'Delete on Rollback'});
         await doc.save();
         await doc.rollback();
         const foundDoc = await TestModel.findById(doc._id);
         expect(foundDoc).toBeNull();
         const historyModel = TestModel.getHistoryModel();
-        const history = await historyModel.findOne({ parent: doc._id });
+        const history = await historyModel.findOne({parent: doc._id});
         expect(history).toBeNull();
     });
 });

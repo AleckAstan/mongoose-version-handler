@@ -29,6 +29,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                     value: mongoose.SchemaTypes.Mixed,
                 },
             ],
+            metadata: mongoose.SchemaTypes.Mixed
         };
 
         if (trackDate) {
@@ -49,7 +50,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
 
     schema.pre(
         'save',
-        function (next, opts: SaveOptions & { disablePreSaveHook?: boolean }) {
+        function (next, opts: SaveOptions & { metadata?: Record<string, any>, disablePreSaveHook?: boolean }) {
             if (opts?.disablePreSaveHook) return next();
             const historyModel = getVersionModel(
                 options && options.collection
@@ -69,6 +70,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                     parent: this._id,
                     version: this[versionKey],
                     patches: patches,
+                    metadata: opts?.metadata
                 };
 
                 if (trackDate) {
@@ -76,7 +78,6 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                 }
 
                 const version = new historyModel(versionObject);
-
                 version.save();
                 return next();
             }
@@ -105,6 +106,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                             parent: newVersion._id,
                             version: newVersion[versionKey],
                             patches: patches,
+                            metadata: opts?.metadata
                         };
 
                         if (trackDate) {
