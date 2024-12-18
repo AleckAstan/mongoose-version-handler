@@ -182,11 +182,11 @@ import { CatService } from './cat.service';
         MongooseModule.forFeatureAsync([
             {
                 name: Cat.name,
-                inject: [getConnectionToken()],
+                inject: [getConnectionToken()],// inject the connection token
                 useFactory: (connection: Connection) => {
                     const schema = CatSchema;
-                    schema.plugin(mongooseVersionHandler, { connection });
-                    return schema;
+                    schema.plugin(mongooseVersionHandler, { connection }); // pass injected connection to the plugin options
+                    return schema; //return the modified schema
                 },
             },
         ]),
