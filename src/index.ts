@@ -50,7 +50,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
 
     schema.pre(
         'save',
-        function (next, opts: SaveOptions & { metadata?: Record<string, any>, disablePreSaveHook?: boolean }) {
+        async function (next, opts: SaveOptions & { metadata?: Record<string, any>, disablePreSaveHook?: boolean }) {
             if (opts?.disablePreSaveHook) return next();
             const historyModel = getVersionModel(
                 options && options.collection
@@ -59,7 +59,9 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             );
             const date = new Date();
 
-            if (this.isNew || !this[versionKey]) {
+
+
+            if (this.isNew && !this[versionKey]) {
                 this[versionKey] = 1;
                 if (trackDate && addDateToDocument) {
                     this[versionDateKey] = date;
@@ -80,6 +82,42 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                 const version = new historyModel(versionObject);
                 version.save();
                 return next();
+            }
+
+
+            if(!this.isNew && !this[versionKey]) {
+                const oldDoc =  await (this.constructor as any).findById(this._id).lean();
+                if(!oldDoc) return next();
+                if (trackDate && addDateToDocument) {
+                    this[versionDateKey] = date;
+                }
+                this[versionKey] = 1;
+                const creationPatches = diff({}, oldDoc, jsonPatchPathConverter);
+                this[versionKey] = 2;
+                const updatePatches = diff(oldDoc, this.toObject(), jsonPatchPathConverter);
+                const creationVersionObject: any = {
+                    parent: this._id,
+                    version: 1,
+                    patches: creationPatches,
+                    metadata: opts?.metadata
+                };
+                const updateVersionObject: any = {
+                    parent: this._id,
+                    version: 2,
+                    patches: updatePatches,
+                    metadata: opts?.metadata
+                };
+
+                if (trackDate) {
+                    creationVersionObject.date = date;
+                    updateVersionObject.date = date;
+                }
+
+                const creationVersion = new historyModel(creationVersionObject);
+                const updateVersion = new historyModel(updateVersionObject);
+                creationVersion.save();
+                updateVersion.save();
+                return next()
             }
 
             (this as any)[versionKey]++;
@@ -121,6 +159,70 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                 );
         },
     );
+
+    // schema.pre(
+    //     'findOneAndUpdate',
+    //     async function (next) {
+    //         const options = this.options;
+    //         if (options.disablePreSaveHook) return next();
+    //
+    //         const historyModel = getVersionModel(
+    //             options && options.collection
+    //                 ? options.collection
+    //                 : this.model.collection.name + '_h',
+    //         );
+    //         const date = new Date();
+    //
+    //         const query = this.getQuery();
+    //         const update = this.getUpdate();
+    //
+    //         const currentDoc = await this.model.findOne(query).lean();
+    //         if (!currentDoc) {
+    //             return next(new Error('Document not found for historization'));
+    //         }
+    //
+    //         const newDoc = { ...currentDoc, ...update?.$set };
+    //         const versionKey = options.versionKey || '__v';
+    //         const versionDateKey = options.versionDateKey || 'versionDate';
+    //
+    //         if (!currentDoc[versionKey]) {
+    //             currentDoc[versionKey] = 0;
+    //         }
+    //         newDoc[versionKey] = currentDoc[versionKey] + 1;
+    //
+    //         if (options.trackDate) {
+    //             newDoc[versionDateKey] = date;
+    //         }
+    //
+    //         const patches = diff(currentDoc, newDoc, jsonPatchPathConverter);
+    //
+    //         const versionObject = {
+    //             parent: currentDoc._id,
+    //             version: newDoc[versionKey],
+    //             patches: patches,
+    //             metadata: options.metadata,
+    //         };
+    //
+    //         if (options.trackDate) {
+    //             versionObject.date = date;
+    //         }
+    //
+    //         const version = new historyModel(versionObject);
+    //         version.save();
+    //
+    //         this.setUpdate({
+    //             ...update,
+    //             $set: {
+    //                 ...update.$set,
+    //                 [versionKey]: newDoc[versionKey],
+    //                 ...(options.trackDate ? { [versionDateKey]: date } : {}),
+    //             },
+    //         });
+    //
+    //         next();
+    //     }
+    // );
+
 
     schema.methods.getVersion = function (versionNumber: any, cb: any) {
         if (versionNumber < 1 || versionNumber > this[versionKey]) {
