@@ -41,7 +41,16 @@ describe('mongooseVersionHandler Plugin', () => {
         await mongoServer.stop();
     });
 
-    it('should create a new document with version 1', async () => {
+
+    it('should not create history or version when pre-save hook is disabled', async () => {
+        const doc = new TestModel({name: 'unversioned Doc'});
+        const created = await doc.save({disablePreSaveHook:true} as SaveOptions&{disablePreSaveHook:boolean});
+        const historyModel = TestModel.getHistoryModel();
+        const noHistory = await historyModel.find({parent: doc._id});
+        expect(noHistory.length).toBe(0)
+    });
+
+    it('should initialize a new document with version 1 and creation date', async () => {
         const doc = new TestModel({name: 'Document 1'});
         await doc.save();
         expect(doc.documentVersion).toBe(1);
@@ -51,7 +60,7 @@ describe('mongooseVersionHandler Plugin', () => {
         expect(history).toBeDefined();
     });
 
-    it('should increment version and save patches on update', async () => {
+    it('should increment version and store changes on update', async () => {
         const doc = new TestModel({name: 'Document 2'});
         await doc.save();
         doc.name = 'Updated Document 2';
@@ -63,7 +72,8 @@ describe('mongooseVersionHandler Plugin', () => {
         expect(history[1].version).toBe(2);
         expect(history[1].patches).toBeDefined();
     });
-    it('should add passed metadata to history data', async () => {
+
+    it('should include custom metadata in the version history', async () => {
         const doc = new TestModel({name: 'With metadata'});
         await doc.save({metadata: {createdBy: 'user1'}} as SaveOptions & { metadata?: Record<string, any> });
         const historyModel = TestModel.getHistoryModel();
@@ -76,7 +86,19 @@ describe('mongooseVersionHandler Plugin', () => {
         expect(history[1].metadata.createdBy).toBe('user2');
     });
 
-    it('should retrieve a specific version', async () => {
+
+    it('should create history entries for unversioned documents upon first update', async () => {
+        const doc = new TestModel({name: 'Unversioned Doc'});
+        const created = await doc.save({disablePreSaveHook:true} as SaveOptions&{disablePreSaveHook:boolean});
+        const historyModel = TestModel.getHistoryModel();
+        created.name = 'Updated to Version 2';
+        const updated = await doc.save();
+        const histories = await historyModel.find({parent: doc._id});
+        expect(histories.length).toBe(2);
+        expect(updated.documentVersion).toBe(2);
+    });
+
+    it('should retrieve a specific version of a document', async () => {
         const doc = new TestModel({name: 'Versioned Doc'});
         const created = await doc.save();
         created.name = 'Updated to Version 2';
@@ -86,7 +108,7 @@ describe('mongooseVersionHandler Plugin', () => {
         expect(version1.name).toBe('Versioned Doc');
     });
 
-    it('should rollback to the previous version', async () => {
+    it('should rollback to the previous version of the document', async () => {
         const doc = new TestModel({name: 'Rollback Test'});
         const saved = await doc.save();
         saved.name = 'Updated Name';
@@ -102,7 +124,7 @@ describe('mongooseVersionHandler Plugin', () => {
         expect(remainingHistory.length).toBe(1);
     });
 
-    it('should delete document if rolling back from version 1', async () => {
+    it('should delete the document when rolling back from version 1', async () => {
         const doc = new TestModel({name: 'Delete on Rollback'});
         await doc.save();
         await doc.rollback();

@@ -59,8 +59,6 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             );
             const date = new Date();
 
-
-
             if (this.isNew && !this[versionKey]) {
                 this[versionKey] = 1;
                 if (trackDate && addDateToDocument) {
@@ -80,7 +78,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                 }
 
                 const version = new historyModel(versionObject);
-                version.save();
+                await version.save();
                 return next();
             }
 
@@ -115,8 +113,8 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
 
                 const creationVersion = new historyModel(creationVersionObject);
                 const updateVersion = new historyModel(updateVersionObject);
-                creationVersion.save();
-                updateVersion.save();
+                await creationVersion.save();
+                await updateVersion.save();
                 return next()
             }
 
@@ -126,37 +124,33 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             }
             const newVersion: any = this.toObject();
 
-            historyModel
+            const versions:Array<any> = await historyModel
                 .find({parent: this._id})
                 .sort({version: 1})
-                .then(
-                    function (versions: any) {
-                        let patches: any = [];
-                        for (let i = 0; i < versions.length; i++) {
-                            patches = patches.concat(versions[i].patches);
-                        }
 
-                        const {newDocument: previousVersion} = applyPatch({}, patches);
+                let patches: any = [];
+                for (let i = 0; i < versions.length; i++) {
+                    patches = patches.concat(versions[i].patches);
+                }
 
-                        patches = diff(previousVersion, newVersion, jsonPatchPathConverter);
+                const {newDocument: previousVersion} =  applyPatch({}, patches);
 
-                        const versionObject: any = {
-                            parent: newVersion._id,
-                            version: newVersion[versionKey],
-                            patches: patches,
-                            metadata: opts?.metadata
-                        };
+                patches =  diff(previousVersion, newVersion, jsonPatchPathConverter);
 
-                        if (trackDate) {
-                            versionObject.date = date;
-                        }
+                const versionObject: any = {
+                    parent: newVersion._id,
+                    version: newVersion[versionKey],
+                    patches: patches,
+                    metadata: opts?.metadata
+                };
 
-                        const version = new historyModel(versionObject);
+                if (trackDate) {
+                    versionObject.date = date;
+                }
 
-                        version.save();
-                        next();
-                    }.bind(this),
-                );
+                const version = await new historyModel(versionObject);
+                await version.save();
+                next();
         },
     );
 
