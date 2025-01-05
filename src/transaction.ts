@@ -1,5 +1,5 @@
 // import mongooseVersionHandler from "mongoose-version-handler"
-import mongoose, {Model, SaveOptions, Schema} from 'mongoose';
+import mongoose, {Model, Schema} from 'mongoose';
 
 import mongooseVersionHandler from "../src";
 
