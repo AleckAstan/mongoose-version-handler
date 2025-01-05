@@ -137,4 +137,39 @@ describe('mongooseVersionHandler Plugin', () => {
             expect(history).toBeNull();
         });
     })
+
+    describe('findOneAndUpdate method', () => {
+        it('should increment version and store changes on update', async () => {
+            const doc = new TestModel({name: 'Document 2'});
+            await doc.save();
+            const updated = await TestModel.findOneAndUpdate({name: 'Document 2'}, {name: 'Updated Document 2'});
+            expect(updated?.documentVersion).toBe(2);
+            const historyModel = TestModel.getHistoryModel();
+            const history = await historyModel.find({parent: doc._id}).sort({version: 1});
+            expect(history.length).toBe(2);
+            expect(history[1].version).toBe(2);
+            expect(history[1].patches).toBeDefined();
+        });
+
+        it('should include custom metadata in the version history', async () => {
+            const doc = new TestModel({name: 'With metadata'});
+            await doc.save();
+            const historyModel = TestModel.getHistoryModel();
+             await TestModel.findOneAndUpdate({name: 'With metadata'}, {name: 'Updated Document 2'}, {metadata: {createdBy: 'user1'}});
+            const history = await historyModel.find({parent: doc._id}).sort({version: 1});
+            expect(history[1].metadata.createdBy).toBeDefined();
+            expect(history[1].metadata.createdBy).toBe('user1');
+        });
+
+        it('should create history entries for unversioned documents upon first update', async () => {
+            const doc = new TestModel({name: 'Unversioned Doc'});
+            const created = await doc.save({disablePreSaveHook: true} as SaveOptions & { disablePreSaveHook: boolean });
+            const historyModel = TestModel.getHistoryModel();
+            const updated = await TestModel.findOneAndUpdate({name: 'Unversioned Doc'}, {name: 'Updated Document 2'});
+
+            const histories = await historyModel.find({parent: doc._id});
+            expect(histories.length).toBe(2);
+            expect(updated?.documentVersion).toBe(2);
+        });
+    })
 });
