@@ -2,6 +2,7 @@ import mongoose, {SaveOptions, Schema} from 'mongoose';
 import {diff, jsonPatchPathConverter} from 'just-diff';
 import {applyPatch} from 'fast-json-patch';
 
+
 const mongooseVersionHandler = (schema: Schema, options: any) => {
     const versionKey =
         options && options.versionKey ? options.versionKey : 'documentVersion';
@@ -83,9 +84,9 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             }
 
 
-            if(!this.isNew && !this[versionKey]) {
-                const oldDoc =  await (this.constructor as any).findById(this._id).lean();
-                if(!oldDoc) return next();
+            if (!this.isNew && !this[versionKey]) {
+                const oldDoc = await (this.constructor as any).findById(this._id).lean();
+                if (!oldDoc) return next();
                 if (trackDate && addDateToDocument) {
                     this[versionDateKey] = date;
                 }
@@ -124,98 +125,104 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             }
             const newVersion: any = this.toObject();
 
-            const versions:Array<any> = await historyModel
+            const versions: Array<any> = await historyModel
                 .find({parent: this._id})
                 .sort({version: 1})
 
-                let patches: any = [];
-                for (let i = 0; i < versions.length; i++) {
-                    patches = patches.concat(versions[i].patches);
-                }
+            let patches: any = [];
+            for (let i = 0; i < versions.length; i++) {
+                patches = patches.concat(versions[i].patches);
+            }
 
-                const {newDocument: previousVersion} =  applyPatch({}, patches);
+            const {newDocument: previousVersion} = applyPatch({}, patches);
 
-                patches =  diff(previousVersion, newVersion, jsonPatchPathConverter);
+            patches = diff(previousVersion, newVersion, jsonPatchPathConverter);
 
-                const versionObject: any = {
-                    parent: newVersion._id,
-                    version: newVersion[versionKey],
-                    patches: patches,
-                    metadata: opts?.metadata
-                };
+            const versionObject: any = {
+                parent: newVersion._id,
+                version: newVersion[versionKey],
+                patches: patches,
+                metadata: opts?.metadata
+            };
 
-                if (trackDate) {
-                    versionObject.date = date;
-                }
+            if (trackDate) {
+                versionObject.date = date;
+            }
 
-                const version = await new historyModel(versionObject);
-                await version.save();
-                next();
+            const version = await new historyModel(versionObject);
+            await version.save();
+            next();
         },
     );
 
-    // schema.pre(
-    //     'findOneAndUpdate',
-    //     async function (next) {
-    //         const options = this.options;
-    //         if (options.disablePreSaveHook) return next();
-    //
-    //         const historyModel = getVersionModel(
-    //             options && options.collection
-    //                 ? options.collection
-    //                 : this.model.collection.name + '_h',
-    //         );
-    //         const date = new Date();
-    //
-    //         const query = this.getQuery();
-    //         const update = this.getUpdate();
-    //
-    //         const currentDoc = await this.model.findOne(query).lean();
-    //         if (!currentDoc) {
-    //             return next(new Error('Document not found for historization'));
-    //         }
-    //
-    //         const newDoc = { ...currentDoc, ...update?.$set };
-    //         const versionKey = options.versionKey || '__v';
-    //         const versionDateKey = options.versionDateKey || 'versionDate';
-    //
-    //         if (!currentDoc[versionKey]) {
-    //             currentDoc[versionKey] = 0;
-    //         }
-    //         newDoc[versionKey] = currentDoc[versionKey] + 1;
-    //
-    //         if (options.trackDate) {
-    //             newDoc[versionDateKey] = date;
-    //         }
-    //
-    //         const patches = diff(currentDoc, newDoc, jsonPatchPathConverter);
-    //
-    //         const versionObject = {
-    //             parent: currentDoc._id,
-    //             version: newDoc[versionKey],
-    //             patches: patches,
-    //             metadata: options.metadata,
-    //         };
-    //
-    //         if (options.trackDate) {
-    //             versionObject.date = date;
-    //         }
-    //
-    //         const version = new historyModel(versionObject);
-    //         version.save();
-    //
-    //         this.setUpdate({
-    //             ...update,
-    //             $set: {
-    //                 ...update.$set,
-    //                 [versionKey]: newDoc[versionKey],
-    //                 ...(options.trackDate ? { [versionDateKey]: date } : {}),
-    //             },
-    //         });
-    //
-    //         next();
-    //     }
-    // );
+    schema.pre('findOneAndUpdate', async function (next) {
+        const opts = this.getOptions();
+        if (opts?.disablePreSaveHook) return next();
+        const date = new Date();
+        const query = this.getFilter();
+        const doc = await this.model.findOne(query);
+        if(!doc) return next();
+        const docPojo = doc.toObject();
+        const currentVersion: number = (docPojo as any)[versionKey]
+        this.set(versionKey, currentVersion ? currentVersion + 1 : 2);
+        this.setOptions({new:true})// this option return the result document after update so we can use it in post hook
+        if(!currentVersion) {
+            const historyModel = getVersionModel(
+                doc.collection.name + '_h'
+            );
+            const patches = diff({}, docPojo, jsonPatchPathConverter);
+            const versionObject: any = {
+                parent: docPojo._id,
+                version: 1,
+                patches: patches,
+                metadata: opts?.metadata
+            };
+            if (trackDate) {
+                versionObject.date = date;
+            }
+            const version = await new historyModel(versionObject);
+            await version.save();
+        }
+
+        if (addDateToDocument) {
+            this.set(versionDateKey, date);
+        }
+        next()
+    })
+    schema.post('findOneAndUpdate', async function (this,doc) {
+        const opts = this.getOptions();
+        if (opts?.disablePreSaveHook) return;
+        const date = new Date();
+        const newVersion = doc.toObject();
+        const historyModel = getVersionModel(
+            doc.collection.name + '_h'
+        );
+        const versions: Array<any> = await historyModel
+            .find({parent: doc._id})
+            .sort({version: 1})
+        let patches: any = [];
+        for (let i = 0; i < versions.length; i++) {
+            patches = patches.concat(versions[i].patches);
+        }
+
+        const {newDocument: previousVersion} = applyPatch({}, patches);
+
+        patches = diff(previousVersion, newVersion, jsonPatchPathConverter);
+
+        const versionObject: any = {
+            parent: newVersion._id,
+            version: newVersion[versionKey],
+            patches: patches,
+            metadata: opts?.metadata
+        };
+
+        if (trackDate) {
+            versionObject.date = date;
+        }
+
+        const version = await new historyModel(versionObject);
+        await version.save();
+    })
 
 
     schema.methods.getVersion = function (versionNumber: any, cb: any) {
