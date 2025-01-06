@@ -310,6 +310,7 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
             const {newDocument} = applyPatch(this, previousVersion.patches);
             Object.assign(this, newDocument);
             this[versionKey] = previousVersion.version;
+            this['__v'] = undefined;
 
             await this.save({disablePreSaveHook: true});
             await historyModel.deleteOne({
