@@ -59,6 +59,9 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                     : this.collection.name + '_h',
             );
             const date = new Date();
+            delete this['--v']
+
+
 
             if (this.isNew && !this[versionKey]) {
                 this[versionKey] = 1;
@@ -90,6 +93,8 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
                 if (trackDate && addDateToDocument) {
                     this[versionDateKey] = date;
                 }
+
+                delete (oldDoc as any)['--v']
                 this[versionKey] = 1;
                 const creationPatches = diff({}, oldDoc, jsonPatchPathConverter);
                 this[versionKey] = 2;
@@ -136,6 +141,9 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
 
             const {newDocument: previousVersion} = applyPatch({}, patches);
 
+            delete (previousVersion as any)['--v']
+            delete newVersion['--v']
+
             patches = diff(previousVersion, newVersion, jsonPatchPathConverter);
 
             const versionObject: any = {
@@ -161,15 +169,16 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
         const date = new Date();
         const query = this.getFilter();
         const doc = await this.model.findOne(query);
-        if(!doc) return next();
+        if (!doc) return next();
         const docPojo = doc.toObject();
         const currentVersion: number = (docPojo as any)[versionKey]
         this.set(versionKey, currentVersion ? currentVersion + 1 : 2);
-        this.setOptions({new:true})// this option return the result document after update so we can use it in post hook
-        if(!currentVersion) {
+        this.setOptions({new: true})// this option return the result document after update so we can use it in post hook
+        if (!currentVersion) {
             const historyModel = getVersionModel(
                 doc.collection.name + '_h'
             );
+            delete docPojo['--v']
             const patches = diff({}, docPojo, jsonPatchPathConverter);
             const versionObject: any = {
                 parent: docPojo._id,
@@ -189,11 +198,12 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
         }
         next()
     })
-    schema.post('findOneAndUpdate', async function (this,doc) {
+    schema.post('findOneAndUpdate', async function (this, doc) {
         const opts = this.getOptions();
         if (opts?.disablePreSaveHook) return;
         const date = new Date();
         const newVersion = doc.toObject();
+        delete newVersion['--v'];
         const historyModel = getVersionModel(
             doc.collection.name + '_h'
         );
@@ -206,6 +216,8 @@ const mongooseVersionHandler = (schema: Schema, options: any) => {
         }
 
         const {newDocument: previousVersion} = applyPatch({}, patches);
+
+
 
         patches = diff(previousVersion, newVersion, jsonPatchPathConverter);
 
